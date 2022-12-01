@@ -55,11 +55,11 @@ class Gigasheet(object):
         return resp['Handle']
     
     def upload_file(self, path_on_disk, name_after_upload):
-        with open(path_on_disk, 'r') as fid:
+        with open(path_on_disk, 'rb') as fid:
             contents = fid.read()
         body = {
                 'name': name_after_upload,
-                'contents': str(base64.b64encode(contents.encode()), 'UTF-8'),
+                'contents': str(base64.b64encode(contents), 'UTF-8'),
                 'parentDirectory': '',
             }
         resp = self._post('/upload/direct', body)
