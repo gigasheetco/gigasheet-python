@@ -7,6 +7,9 @@ import urllib.parse
 import time
 import base64
 
+
+expected_filter_key = '_cnf_'
+
 _api_key_env = 'GIGASHEET_API_KEY'
 _auth_header = 'X-GIGASHEET-TOKEN'
 _gigasheet_api_base_url = "https://api.gigasheet.com"
@@ -106,3 +109,18 @@ class Gigasheet(object):
         if not success:
             raise RuntimeError(f'Handle {handle} still not done after {i} tries, last status was: {status}')
 
+    def get_rows(self, handle, start_row, end_row, filter_model={}):
+        if not handle:
+            raise ValueError('Empty value for handle')
+        url = f'/file/{handle}/filter'
+        data = {
+            'startRow':start_row,
+            'endRow':end_row,
+            'filterModel':filter_model,
+        }
+        if (not (
+            filter_model == {} or
+            (len(filter_model) == 1 and list(filter_model.keys())[0] == _expected_filter_key)
+        )):
+            raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {_expected_filter_key}')
+        return self._post(url, data)
