@@ -120,7 +120,7 @@ class Gigasheet(object):
         }
         if (not (
             filter_model == {} or
-            (len(filter_model) == 1 and list(filter_model.keys())[0] == _expected_filter_key)
+            (len(filter_model) == 1 and list(filter_model.keys())[0] == expected_filter_key)
         )):
             raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {_expected_filter_key}')
         return self._post(url, data)
