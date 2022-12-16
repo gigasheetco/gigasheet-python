@@ -77,16 +77,30 @@ class Gigasheet(object):
     
     def list_saved_filters(self):
         resp = self._post('/filter-templates')
-    
-    def share(self, handle, recipients):
+
+    def _share_set_public(self, handle, make_public):
+        url = f'/file/{handle}/share'
+        body = {
+                'public':make_public,
+                }
+        self._put(url, body)
+
+    def _share_send_email(self, handle, recipients):
         if not recipients:
             return
-        url = f'/file/{handle}/share/file'
+        url = f'/file/{handle}/share/send'
         body = {
-            'emails': recipients,
+            'recipients': recipients,
             'link': f'https://app.gigasheet.com/spreadsheet/shared/{handle}' # TODO: this should not be here
             }
         self._put(url, body)
+    
+    def share(self, handle, recipients):
+        self._share_set_public(handle, True)
+        self._share_send_email(handle, recipients)
+
+    def unshare(self, handle):
+        self._share_set_public(handle, False)
     
     def wait_for_file_to_finish(self, handle, seconds_between_polls=1.0, max_tries=1000):
         if not handle:
