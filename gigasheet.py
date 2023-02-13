@@ -20,6 +20,9 @@ _file_success_status = ('processed')
 # Will read API key from env variable GIGASHEET_API_KEY if not provided on init
 # API calls throw an error if they fail
 class Gigasheet(object):
+    enrichment_data_types = {
+            'email-format-check': 'EMAIL',
+            }
    
     def __init__(self, api_key=None):
         if api_key:
@@ -73,17 +76,17 @@ class Gigasheet(object):
 
     def rename(self, handle, new_name):
         body = {'uuid':handle, 'filename':new_name}
-        resp = self._post(f'/rename/{handle}', body)
+        return self._post(f'/rename/{handle}', body)
     
     def list_saved_filters(self):
-        resp = self._post('/filter-templates')
+        return self._get('/filter-templates')
 
     def _share_set_public(self, handle, make_public):
         url = f'/file/{handle}/share'
         body = {
                 'public':make_public,
                 }
-        self._put(url, body)
+        return self._put(url, body)
 
     def _share_send_email(self, handle, recipients):
         if not recipients:
@@ -109,6 +112,8 @@ class Gigasheet(object):
         i = 0
         status = None
         for i in range(max_tries):
+            if i != 0:
+                time.sleep(seconds_between_polls)
             try:
                 info = self.info(handle)
             except:
@@ -119,11 +124,10 @@ class Gigasheet(object):
                 break
             if status not in _file_wait_status:
                 raise RuntimeError(f'Bad status on handle {handle}: {status}')
-            time.sleep(seconds_between_polls)
         if not success:
             raise RuntimeError(f'Handle {handle} still not done after {i} tries, last status was: {status}')
 
-    def get_rows(self, handle, start_row, end_row, filter_model={}):
+    def get_rows(self, handle, start_row, end_row, filter_model=None):
         if not handle:
             raise ValueError('Empty value for handle')
         url = f'/file/{handle}/filter'
@@ -133,8 +137,48 @@ class Gigasheet(object):
             'filterModel':filter_model,
         }
         if (not (
+            filter_model is None or
             filter_model == {} or
             (len(filter_model) == 1 and list(filter_model.keys())[0] == expected_filter_key)
         )):
-            raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {_expected_filter_key}')
+            raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {expected_filter_key}')
         return self._post(url, data)
+
+    def get_columns(self, handle):
+        if not handle:
+            raise ValueError('Empty value for handle')
+        return self._get(f'/dataset/{handle}/columns')
+
+    def get_filter_model_for_saved_filter_on_sheet(self, sheet_handle, saved_filter_handle):
+        if not sheet_handle:
+            raise ValueError('Empty value for sheet handle')
+        if not saved_filter_handle:
+            raise ValueError('Empty value for saved filter handle')
+        url = f'/filter-templates/{saved_filter_handle}/on-sheet/{sheet_handle}'
+        return self._get(url)
+
+    def get_rows_with_saved_filter(self, sheet_handle, saved_filter_handle, start_row, end_row):
+        resp = self.get_filter_model_for_saved_filter_on_sheet(sheet_handle, saved_filter_handle)
+        filter_model = resp['filterModel']
+        return self.get_rows(sheet_handle, start_row, end_row, filter_model)
+
+    def enrich_builtin(self, handle, column_id, enrichment_service_provider, filter_model=None):
+        if not handle:
+            raise ValueError('Empty value for sheet handle')
+        if not enrichment_service_provider in self.enrichment_data_types:
+            return ValueError(f'Unknown enrichment service provider: {enrichment_service_provider}')
+        data = {
+                'filterModel':filter_model,
+                'enrichments':[{
+                    'provider':enrichment_service_provider,
+                    'type':self.enrichment_data_types[enrichment_service_provider],
+                    'key':None
+                    }] 
+                }
+        url = f'/enrichments/{handle}/{column_id}'
+        return self._post(url, data)
+
+    def enrich_email_format(self, handle, column_id, filter_model=None):
+        return self.enrich_builtin(handle, column_id, 'email-format-check', filter_model)
+
+    
