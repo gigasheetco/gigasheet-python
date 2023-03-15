@@ -6,6 +6,7 @@ import os
 import urllib.parse
 import time
 import base64
+from enum import IntEnum
 
 
 expected_filter_key = '_cnf_'
@@ -52,7 +53,7 @@ class Gigasheet(object):
     def _get(self, endpoint):
         return self._after(requests.get(self._url(endpoint), headers=self._headers))
 
-    def upload_url(self, url, name_after_upload):
+    def upload_url(self, url: str, name_after_upload: str) -> str:
         body = {
             'url': url,
             'name': name_after_upload,
@@ -60,7 +61,7 @@ class Gigasheet(object):
         resp = self._post('/upload/url', body)
         return resp['Handle']
     
-    def upload_file(self, path_on_disk, name_after_upload):
+    def upload_file(self, path_on_disk: str, name_after_upload: str) -> str:
         with open(path_on_disk, 'rb') as fid:
             contents = fid.read()
         body = {
@@ -81,26 +82,17 @@ class Gigasheet(object):
     def list_saved_filters(self):
         return self._get('/filter-templates')
 
-    def _share_set_public(self, handle, make_public):
-        url = f'/file/{handle}/share'
+    def share(self, handle, recipients, with_write=False, message=''):
+        url = f'/file/{handle}/share/file'
+        permissions = [SharePermission.READ]
+        if with_write:
+            permissions.append(SharePermission.WRITE)
         body = {
-                'public':make_public,
-                }
-        return self._put(url, body)
-
-    def _share_send_email(self, handle, recipients):
-        if not recipients:
-            return
-        url = f'/file/{handle}/share/send'
-        body = {
-            'recipients': recipients,
-            'link': f'https://app.gigasheet.com/spreadsheet/shared/{handle}' # TODO: this should not be here
+                'emails':recipients,
+                'permissions':permissions,
+                'message':message,
             }
         self._put(url, body)
-    
-    def share(self, handle, recipients):
-        self._share_set_public(handle, True)
-        self._share_send_email(handle, recipients)
 
     def unshare(self, handle):
         self._share_set_public(handle, False)
@@ -182,3 +174,7 @@ class Gigasheet(object):
         return self.enrich_builtin(handle, column_id, 'email-format-check', filter_model)
 
     
+
+class SharePermission(IntEnum):
+    READ = 0
+    WRITE = 1
