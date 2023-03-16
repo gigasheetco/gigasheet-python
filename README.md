@@ -22,7 +22,7 @@ To run the examples, clone this repository and then run the following steps from
 
 3. Run an example. See the Authentication section for setting your key. After that, try running some examples in the example folder.
 
-`python3 examples/checksetup.py`
+`python3 examples/check_setup.py`
 
 ### Alternate installation as standalone
 
@@ -42,9 +42,13 @@ You can use the example command-line tool `examples/import_and_share_cli.py` to 
 
 First, use the AWS console or an AWS SDK to obtain a pre-signed link for the file you want to import. Then, use the command-line tool like this:
 
-`python3 examples/import_and_share_cli.py --input-url <the s3 presigned link> --share-to <email of colleague> --share-write`
+`python3 examples/upload_and_share_cli.py --input-url <the s3 presigned link> --share-to <email of colleague> --share-write`
 
-Run `python3 examples/import_and_share_cli.py --help` to see more options like setting a file name or a share message.
+Run `python3 examples/upload_and_share_cli.py --help` to see more options like setting a file name or a share message.
+
+Alternatively, if you already have AWS credentials on your machine, you could look at the simplified example script:
+
+`python3 examples/upload_from_s3.py`
 
 ## API endpoint documentation
 

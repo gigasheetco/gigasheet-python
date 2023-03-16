@@ -37,23 +37,32 @@ class Gigasheet(object):
             'Content-type': 'application/json',  # Required by Gigasheet API
         }
 
-    def _url(self, endpoint):
-        return urllib.parse.urljoin(_gigasheet_api_base_url, endpoint)
+    @staticmethod
+    def get_sheet_url(handle: str) -> str:
+        """get_app_url
+
+        Get the URL to view a sheet in the Gigasheet web application.
+
+        Parameters:
+            handle (str): sheet handle
+
+        Returns:
+            str: the URL of that sheet in the Gigasheet web application
+        """
+        return f'https://app.gigasheet.com/spreadsheet/id/{handle}'
     
-    def _after(self, resp):
-        resp.raise_for_status()
-        return resp.json()
-
-    def _post(self, endpoint, data):
-        return self._after(requests.post(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
-    
-    def _put(self, endpoint, data):
-        return self._after(requests.put(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
-
-    def _get(self, endpoint):
-        return self._after(requests.get(self._url(endpoint), headers=self._headers))
-
     def upload_url(self, url: str, name_after_upload: str) -> str:
+        """upload_url
+
+        Upload into Gigasheet from a world-readable URL.
+
+        Parameters:
+            url (str): the URL to upload from
+            name_after_upload (str): the name after the upload is done
+
+        Returns
+            str: sheet handle that uniquely identifies the uploaded file in Gigasheet
+        """
         body = {
             'url': url,
             'name': name_after_upload,
@@ -71,7 +80,7 @@ class Gigasheet(object):
             }
         resp = self._post('/upload/direct', body)
         return resp['Handle']
-    
+
     def info(self, handle):
         return self._get(f'/dataset/{handle}')
 
@@ -173,7 +182,22 @@ class Gigasheet(object):
     def enrich_email_format(self, handle, column_id, filter_model=None):
         return self.enrich_builtin(handle, column_id, 'email-format-check', filter_model)
 
+    def _url(self, endpoint):
+        return urllib.parse.urljoin(_gigasheet_api_base_url, endpoint)
     
+    def _after(self, resp):
+        resp.raise_for_status()
+        return resp.json()
+
+    def _post(self, endpoint, data):
+        return self._after(requests.post(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
+    
+    def _put(self, endpoint, data):
+        return self._after(requests.put(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
+
+    def _get(self, endpoint):
+        return self._after(requests.get(self._url(endpoint), headers=self._headers))
+
 
 class SharePermission(IntEnum):
     READ = 0
