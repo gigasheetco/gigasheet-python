@@ -71,6 +71,19 @@ class Gigasheet(object):
         return resp['Handle']
     
     def upload_file(self, path_on_disk: str, name_after_upload: str) -> str:
+        """upload_file
+
+        Upload a local file into Gigasheet.
+
+        This uses a single http connection, so depending on the speed of your internet connection, you may not be able to upload large files. For large files, consider putting your data on a cloud storage and using upload_url with a presigned link instead.
+
+        Parameters:
+            path_on_disk (str): the path to the local file to upload
+            name_after_upload (str): the name after the upload is done
+
+        Returns
+            str: sheet handle that uniquely identifies the uploaded file in Gigasheet
+        """
         with open(path_on_disk, 'rb') as fid:
             contents = fid.read()
         body = {
@@ -81,8 +94,74 @@ class Gigasheet(object):
         resp = self._post('/upload/direct', body)
         return resp['Handle']
 
-    def info(self, handle):
+    def info(self, handle: str) -> dict:
+        """info
+
+        Get metadata about a sheet.
+
+        Includes things like filename, column types, last modified, and file state.
+
+        Parameters:
+            handle(str): sheet handle
+
+        Returns:
+            dict: metadata about the sheet
+        """
         return self._get(f'/dataset/{handle}')
+
+    def create_export(self, handle: str, state: dict = {}, name: str = 'export.csv', folder_handle: str = '') -> str:
+        """create_export
+
+        Create an export for a sheet, can be used with download_export
+
+        Parameters:
+            handle (str): sheet handle to export
+            state (dict): the state of the sheet to apply when exporting, look at ClientState field in return value from info()
+            name (str): filename of the file that will be created with the data
+            folder_handle (str): handle of Gigasheet directory to place export into
+
+        Returns:
+            str: handle of the export in Gigasheet, use with download_export
+        """
+        body = {
+                'filename': name,
+                'folderHandle': folder_handle,
+                'gridState': state,
+                }
+        resp = self._post(f'/dataset/{handle}/export', body)
+        return resp['handle']
+
+    def create_export_current_state(self, handle: str, name: str = 'export.csv', folder_handle: str = '') -> str:
+        """create_export_current_state
+
+        Same as create_export but uses current file state when exporting
+
+        Parameters:
+            handle (str): sheet handle to export
+            state (dict): the state of the sheet to apply when exporting, see get_state
+            name (str): filename of the file that will be created with the data
+            folder_handle (str): handle of Gigasheet directory to place export into
+
+        Returns:
+            str: handle of the export in Gigasheet, use with download_export
+        """
+        state = self.info(handle).get('ClientState', {})
+        return self.create_export(handle, state, name, folder_handle)
+    
+    def download_export(self, export_handle: str) -> str:
+        """download_export
+
+        Obtain an S3 presigned URL for a completed export.
+
+        Use create_export to get an export handle and then wait for it to finish with wait_for_file_to_finish.
+
+        Parameters:
+            export_handle(str): handle of an export, must be already finished
+
+        Returns:
+            str: an S3 presigned URL for the export file
+        """
+        return self._get(f'dataset/{export_handle}/download-export')['presignedUrl']
 
     def rename(self, handle, new_name):
         body = {'uuid':handle, 'filename':new_name}

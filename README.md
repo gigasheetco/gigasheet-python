@@ -50,6 +50,12 @@ Alternatively, if you already have AWS credentials on your machine, you could lo
 
 `python3 examples/upload_from_s3.py`
 
+### Export from Gigasheet to a local file
+
+You can use this example script to get an S3 presigned URL of an export and to save it to your local disk:
+
+`python3 examples/download_export.py`
+
 ## API endpoint documentation
 
 [https://gigasheet.readme.io/](https://gigasheet.readme.io/)
