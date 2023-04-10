@@ -14,6 +14,7 @@ expected_filter_key = '_cnf_'
 _api_key_env = 'GIGASHEET_API_KEY'
 _auth_header = 'X-GIGASHEET-TOKEN'
 _gigasheet_api_base_url = "https://api.gigasheet.com"
+_gigasheet_ui_base_url = "https://app.gigasheet.com"
 _file_wait_status = ('uploading', 'loading', 'processing')
 _file_success_status = ('processed')
 
@@ -39,7 +40,7 @@ class Gigasheet(object):
 
     @staticmethod
     def get_sheet_url(handle: str) -> str:
-        """get_app_url
+        """get_sheet_url
 
         Get the URL to view a sheet in the Gigasheet web application.
 
@@ -48,8 +49,34 @@ class Gigasheet(object):
 
         Returns:
             str: the URL of that sheet in the Gigasheet web application
+
+        See also get_handle_from_url for converting the opposite direction.
         """
-        return f'https://app.gigasheet.com/spreadsheet/id/{handle}'
+        return f'{_gigasheet_ui_base_url}/spreadsheet/id/{handle}'
+    
+    @staticmethod
+    def get_handle_from_url(url: str) -> str:
+        """get_handle_from_url
+
+        Get the handle of a sheet from the sheet URL.
+
+        Parameters:
+            url (str): the URL of a sheet
+
+        Returns:
+            str: the handle of the sheet
+
+        See also get_sheet_url for converting the opposite direction.
+        """
+        if not url.startswith(f'{_gigasheet_ui_base_url}/spreadsheet'):
+            raise ValueError('Must be a complete URL of a sheet in the Gigasheet UI')
+        parts = urllib.parse.urlparse(url).path.split('/')
+        if len(parts) < 4:
+            raise ValueError('No handle found in URL')
+        handle = parts[3]
+        if not handle:
+            raise ValueError('No handle found in URL')
+        return handle
     
     def upload_url(self, url: str, name_after_upload: str) -> str:
         """upload_url
