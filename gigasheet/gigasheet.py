@@ -4,6 +4,7 @@ import requests
 import json
 import os
 import urllib.parse
+import collections
 import time
 import base64
 from enum import IntEnum
@@ -23,8 +24,8 @@ _file_success_status = ('processed')
 # API calls throw an error if they fail
 class Gigasheet(object):
     enrichment_data_types = {
-            'email-format-check': 'EMAIL',
-            }
+        'email-format-check': 'EMAIL',
+        }
    
     def __init__(self, api_key=None):
         if api_key:
@@ -78,14 +79,15 @@ class Gigasheet(object):
             raise ValueError('No handle found in URL')
         return handle
     
-    def upload_url(self, url: str, name_after_upload: str) -> str:
+    def upload_url(self, url: str, name_after_upload: str, append_to_handle: str = None) -> str:
         """upload_url
 
         Upload into Gigasheet from a world-readable URL.
 
         Parameters:
             url (str): the URL to upload from
-            name_after_upload (str): the name after the upload is done
+            name_after_upload (str): the name after the upload is done, must be non-enpty but is ignored if successfully appended
+            append_to_handle (str): optionally specify an existing file handle to append records
 
         Returns
             str: sheet handle that uniquely identifies the uploaded file in Gigasheet
@@ -94,10 +96,12 @@ class Gigasheet(object):
             'url': url,
             'name': name_after_upload,
             }
+        if append_to_handle:
+            body['targetHandle'] = append_to_handle
         resp = self._post('/upload/url', body)
         return resp['Handle']
     
-    def upload_file(self, path_on_disk: str, name_after_upload: str) -> str:
+    def upload_file(self, path_on_disk: str, name_after_upload: str, append_to_handle: str = None) -> str:
         """upload_file
 
         Upload a local file into Gigasheet.
@@ -106,8 +110,9 @@ class Gigasheet(object):
 
         Parameters:
             path_on_disk (str): the path to the local file to upload
-            name_after_upload (str): the name after the upload is done
-
+            name_after_upload (str): the name after the upload is done, must be non-enpty but is ignored if successfully appended
+            append_to_handle (str): optionally specify an existing file handle to append records
+        
         Returns
             str: sheet handle that uniquely identifies the uploaded file in Gigasheet
         """
@@ -117,7 +122,10 @@ class Gigasheet(object):
                 'name': name_after_upload,
                 'contents': str(base64.b64encode(contents), 'UTF-8'),
                 'parentDirectory': '',
+                
             }
+        if append_to_handle:
+            body['targetHandle'] = append_to_handle
         resp = self._post('/upload/direct', body)
         return resp['Handle']
 
@@ -190,6 +198,69 @@ class Gigasheet(object):
         """
         return self._get(f'dataset/{export_handle}/download-export')['presignedUrl']
 
+    def column_ids_for_names(self, handle: str, column_names: list) -> list:
+        """column_ids_for_names
+
+        Maps column names to column IDs.
+        
+        Input column names must exist and be unique or this raises a ValueError.
+
+        Params:
+            handle (str): The handle of the sheet to get column IDs.
+            column_names (list): List of strings of column names to map to IDs.
+        
+        Returns:
+            list: A list of strings of column IDs corresponding to the input names.
+        """
+        cols = self.get_columns(handle)
+        out = []
+        name_to_ids = collections.defaultdict(list)
+        for c in cols:
+            name_to_ids[c['Name']].append(c['Id'])
+        for n in column_names:
+            c = name_to_ids[n]
+            if not c:
+                raise ValueError(f'No column found with name: {n}')
+            if len(c) > 1:
+                raise ValueError(f'Multiple matches for column name: {n}')
+            out.append(c[0])
+        return out
+    
+    def deduplicate_rows(self, handle: str, column_ids: list, sort_model: object):
+        """deduplicate_rows
+
+        Removes duplicate rows.
+
+        Example sort model: [{"colId": "B", "sort": "desc"}]
+
+        Params:
+            handle (str): The sheet handle to remove duplicate rows from.
+            column_ids (str): The column IDs to deduplicate, multiple columns are treated as a compound key.
+            sort_model (object): Sort model to use when deduplicating, first row will be kept.
+        """
+        body = {
+            'columns':column_ids,
+            'sortModel':sort_model
+        }
+        self._delete(f'/dataset/{handle}/deduplicate-rows', body)
+    
+    def count_rows(self, handle: str, filter_model: object = None) -> int:
+        """count_rows
+        
+        Query a sheet and return row count, optionally with a filter.
+
+        Uses the the regular row method underneath, see get_rows for more.
+
+        Params:
+            handle (str): The sheet handle to count the rows of
+            filter_model (object): Optional filter model to apply before counting
+
+        Returns:
+            int: The row count 
+        """
+        resp = self.get_rows(handle, 0, 1, filter_model)
+        return resp['lastRow']
+
     def rename(self, handle, new_name):
         body = {'uuid':handle, 'filename':new_name}
         return self._post(f'/rename/{handle}', body)
@@ -212,7 +283,17 @@ class Gigasheet(object):
     def unshare(self, handle):
         self._share_set_public(handle, False)
     
-    def wait_for_file_to_finish(self, handle, seconds_between_polls=1.0, max_tries=1000):
+    def wait_for_file_to_finish(self, handle: str, deletion_is_success: bool = False, seconds_between_polls: float = 1.0, max_tries: int = 1000):
+        """wait_for_file_to_finish
+        
+        Poll a handle until it is in a successful state, or raise a RuntimeError.
+
+        Params:
+            handle (str): The handle to poll.
+            deletion_is_success (bool): Some jobs delete after completion, so set this to true to count deletion as success.
+            seconds_between_polls (float): Seconds to wait between polling.
+            max_tries (int): Number of times to poll before assumming the job was a failure.
+        """
         if not handle:
             raise ValueError('Empty value for handle')
         success = False
@@ -223,12 +304,23 @@ class Gigasheet(object):
                 time.sleep(seconds_between_polls)
             try:
                 info = self.info(handle)
-            except:
+            except requests.exceptions.HTTPError as e:
+                # This block is here because some operations, such as appending to a sheet, create transient sheets in Gigasheet.
+                # Those transient sheets are deleted after the job is done, and the poll will receive a 400 Bad Request in response when that happens.
+                # Thus, we provide the deletion_is_success flag on this method and check for 400 responses that say "deleted", treating that as done.
+                # This is a somewhat odd situation driven by the implementation on the backend, so we may change how we handle it in a future version.
+                if deletion_is_success:
+                    resp = e.response
+                    if resp.status_code == 400 and 'deleted' in resp.text:
+                        return
+                else:
+                    continue
+            except Exception:
+                # Ignore errors unless we are checking for deletion as success.
                 continue
             status = info.get('Status')
             if status == _file_success_status:
-                success = True
-                break
+                return
             if status not in _file_wait_status:
                 raise RuntimeError(f'Bad status on handle {handle}: {status}')
         if not success:
@@ -251,7 +343,7 @@ class Gigasheet(object):
             raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {expected_filter_key}')
         return self._post(url, data)
 
-    def get_columns(self, handle):
+    def gets(self, handle):
         if not handle:
             raise ValueError('Empty value for handle')
         return self._get(f'/dataset/{handle}/columns')
@@ -303,6 +395,9 @@ class Gigasheet(object):
 
     def _get(self, endpoint):
         return self._after(requests.get(self._url(endpoint), headers=self._headers))
+    
+    def _delete(self, endpoint, data):
+        return self._after(requests.delete(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
 
 
 class SharePermission(IntEnum):
