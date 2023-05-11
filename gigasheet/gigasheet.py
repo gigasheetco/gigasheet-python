@@ -25,8 +25,8 @@ _file_success_status = ('processed')
 class Gigasheet(object):
     enrichment_data_types = {
         'email-format-check': 'EMAIL',
-        }
-   
+    }
+
     def __init__(self, api_key=None):
         if api_key:
             self.api_key = api_key
@@ -35,7 +35,7 @@ class Gigasheet(object):
         if not self.api_key:
             raise ValueError(f'No API key, provide in constructor or set env {_api_key_env}')
         self._headers = {
-            _auth_header:self.api_key,
+            _auth_header: self.api_key,
             'Content-type': 'application/json',  # Required by Gigasheet API
         }
 
@@ -54,7 +54,7 @@ class Gigasheet(object):
         See also get_handle_from_url for converting the opposite direction.
         """
         return f'{_gigasheet_ui_base_url}/spreadsheet/id/{handle}'
-    
+
     @staticmethod
     def get_handle_from_url(url: str) -> str:
         """get_handle_from_url
@@ -78,7 +78,7 @@ class Gigasheet(object):
         if not handle:
             raise ValueError('No handle found in URL')
         return handle
-    
+
     def upload_url(self, url: str, name_after_upload: str, append_to_handle: str = None) -> str:
         """upload_url
 
@@ -95,12 +95,12 @@ class Gigasheet(object):
         body = {
             'url': url,
             'name': name_after_upload,
-            }
+        }
         if append_to_handle:
             body['targetHandle'] = append_to_handle
         resp = self._post('/upload/url', body)
         return resp['Handle']
-    
+
     def upload_file(self, path_on_disk: str, name_after_upload: str, append_to_handle: str = None) -> str:
         """upload_file
 
@@ -112,18 +112,17 @@ class Gigasheet(object):
             path_on_disk (str): the path to the local file to upload
             name_after_upload (str): the name after the upload is done, must be non-enpty but is ignored if successfully appended
             append_to_handle (str): optionally specify an existing file handle to append records
-        
+
         Returns
             str: sheet handle that uniquely identifies the uploaded file in Gigasheet
         """
         with open(path_on_disk, 'rb') as fid:
             contents = fid.read()
         body = {
-                'name': name_after_upload,
-                'contents': str(base64.b64encode(contents), 'UTF-8'),
-                'parentDirectory': '',
-                
-            }
+            'name': name_after_upload,
+            'contents': str(base64.b64encode(contents), 'UTF-8'),
+            'parentDirectory': '',
+        }
         if append_to_handle:
             body['targetHandle'] = append_to_handle
         resp = self._post('/upload/direct', body)
@@ -159,10 +158,10 @@ class Gigasheet(object):
             str: handle of the export in Gigasheet, use with download_export
         """
         body = {
-                'filename': name,
-                'folderHandle': folder_handle,
-                'gridState': state,
-                }
+            'filename': name,
+            'folderHandle': folder_handle,
+            'gridState': state,
+        }
         resp = self._post(f'/dataset/{handle}/export', body)
         return resp['handle']
 
@@ -182,7 +181,7 @@ class Gigasheet(object):
         """
         state = self.info(handle).get('ClientState', {})
         return self.create_export(handle, state, name, folder_handle)
-    
+
     def download_export(self, export_handle: str) -> str:
         """download_export
 
@@ -202,17 +201,17 @@ class Gigasheet(object):
         """column_ids_for_names
 
         Maps column names to column IDs.
-        
+
         Input column names must exist and be unique or this raises a ValueError.
 
         Params:
             handle (str): The handle of the sheet to get column IDs.
             column_names (list): List of strings of column names to map to IDs.
-        
+
         Returns:
             list: A list of strings of column IDs corresponding to the input names.
         """
-        cols = self.get_columns(handle)
+        cols = self.get_columns(handle, show_hidden=True)
         out = []
         name_to_ids = collections.defaultdict(list)
         for c in cols:
@@ -225,7 +224,7 @@ class Gigasheet(object):
                 raise ValueError(f'Multiple matches for column name: {n}')
             out.append(c[0])
         return out
-    
+
     def deduplicate_rows(self, handle: str, column_ids: list, sort_model: object):
         """deduplicate_rows
 
@@ -239,14 +238,14 @@ class Gigasheet(object):
             sort_model (object): Sort model to use when deduplicating, first row will be kept.
         """
         body = {
-            'columns':column_ids,
-            'sortModel':sort_model
+            'columns': column_ids,
+            'sortModel': sort_model
         }
         self._delete(f'/dataset/{handle}/deduplicate-rows', body)
-    
+
     def count_rows(self, handle: str, filter_model: object = None) -> int:
         """count_rows
-        
+
         Query a sheet and return row count, optionally with a filter.
 
         Uses the the regular row method underneath, see get_rows for more.
@@ -256,15 +255,15 @@ class Gigasheet(object):
             filter_model (object): Optional filter model to apply before counting
 
         Returns:
-            int: The row count 
+            int: The row count
         """
         resp = self.get_rows(handle, 0, 1, filter_model)
         return resp['lastRow']
 
     def rename(self, handle, new_name):
-        body = {'uuid':handle, 'filename':new_name}
+        body = {'uuid': handle, 'filename': new_name}
         return self._post(f'/rename/{handle}', body)
-    
+
     def list_saved_filters(self):
         return self._get('/filter-templates')
 
@@ -274,18 +273,18 @@ class Gigasheet(object):
         if with_write:
             permissions.append(SharePermission.WRITE)
         body = {
-                'emails':recipients,
-                'permissions':permissions,
-                'message':message,
-            }
+            'emails': recipients,
+            'permissions': permissions,
+            'message': message,
+        }
         self._put(url, body)
 
     def unshare(self, handle):
         self._share_set_public(handle, False)
-    
+
     def wait_for_file_to_finish(self, handle: str, deletion_is_success: bool = False, seconds_between_polls: float = 1.0, max_tries: int = 1000):
         """wait_for_file_to_finish
-        
+
         Poll a handle until it is in a successful state, or raise a RuntimeError.
 
         Params:
@@ -331,22 +330,20 @@ class Gigasheet(object):
             raise ValueError('Empty value for handle')
         url = f'/file/{handle}/filter'
         data = {
-            'startRow':start_row,
-            'endRow':end_row,
-            'filterModel':filter_model,
+            'startRow': start_row,
+            'endRow': end_row,
+            'filterModel': filter_model,
         }
         if (not (
-            filter_model is None or
-            filter_model == {} or
-            (len(filter_model) == 1 and list(filter_model.keys())[0] == expected_filter_key)
-        )):
+            filter_model is None or filter_model == {} or (
+                len(filter_model) == 1 and list(filter_model.keys())[0] == expected_filter_key))):
             raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {expected_filter_key}')
         return self._post(url, data)
 
-    def gets(self, handle):
+    def get_columns(self, handle, show_hidden=False):
         if not handle:
             raise ValueError('Empty value for handle')
-        return self._get(f'/dataset/{handle}/columns')
+        return self._get(f'/dataset/{handle}/columns', params={'showHidden': show_hidden})
 
     def get_filter_model_for_saved_filter_on_sheet(self, sheet_handle, saved_filter_handle):
         if not sheet_handle:
@@ -364,16 +361,16 @@ class Gigasheet(object):
     def enrich_builtin(self, handle, column_id, enrichment_service_provider, filter_model=None):
         if not handle:
             raise ValueError('Empty value for sheet handle')
-        if not enrichment_service_provider in self.enrichment_data_types:
+        if enrichment_service_provider not in self.enrichment_data_types:
             return ValueError(f'Unknown enrichment service provider: {enrichment_service_provider}')
         data = {
-                'filterModel':filter_model,
-                'enrichments':[{
-                    'provider':enrichment_service_provider,
-                    'type':self.enrichment_data_types[enrichment_service_provider],
-                    'key':None
-                    }] 
-                }
+            'filterModel': filter_model,
+            'enrichments': [{
+                'provider': enrichment_service_provider,
+                'type': self.enrichment_data_types[enrichment_service_provider],
+                'key': None
+            }]
+        }
         url = f'/enrichments/{handle}/{column_id}'
         return self._post(url, data)
 
@@ -382,20 +379,20 @@ class Gigasheet(object):
 
     def _url(self, endpoint):
         return urllib.parse.urljoin(_gigasheet_api_base_url, endpoint)
-    
+
     def _after(self, resp):
         resp.raise_for_status()
         return resp.json()
 
     def _post(self, endpoint, data):
         return self._after(requests.post(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
-    
+
     def _put(self, endpoint, data):
         return self._after(requests.put(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
 
-    def _get(self, endpoint):
-        return self._after(requests.get(self._url(endpoint), headers=self._headers))
-    
+    def _get(self, endpoint, params={}):
+        return self._after(requests.get(self._url(endpoint), headers=self._headers, params=params))
+
     def _delete(self, endpoint, data):
         return self._after(requests.delete(self._url(endpoint), headers=self._headers, data=json.dumps(data)))
 

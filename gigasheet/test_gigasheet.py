@@ -19,12 +19,12 @@ def giga_with_mock():
 
 
 class UploadTest(unittest.TestCase):
-    
+
     def test_upload_file(self):
         g = giga_with_mock()
         name = 'mock file upload'
         test_file = 'testdata/sample-local-upload.csv'
-        expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl' # base64 encoded file contents of test file
+        expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl'  # base64 encoded file contents of test file
         g.upload_file(test_file, name)
         expected_body = {
             'name': name,
@@ -32,18 +32,18 @@ class UploadTest(unittest.TestCase):
             'parentDirectory': ''
         }
         g._post.assert_called_with('/upload/direct', expected_body)
-    
+
     def test_upload_file_append(self):
         g = giga_with_mock()
         name = 'mock file upload'
         test_file = 'testdata/sample-local-upload.csv'
-        expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl' # base64 encoded file contents of test file
+        expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl'  # base64 encoded file contents of test file
         g.upload_file(test_file, name, _mock_handle)
         expected_body = {
             'name': name,
             'contents': expected_bytes,
             'parentDirectory': '',
-            'targetHandle':_mock_handle
+            'targetHandle': _mock_handle
         }
         g._post.assert_called_with('/upload/direct', expected_body)
 
@@ -57,7 +57,7 @@ class UploadTest(unittest.TestCase):
             'url': url,
         }
         g._post.assert_called_with('/upload/url', expected_body)
-    
+
     def test_upload_url_append(self):
         g = giga_with_mock()
         name = 'mock file upload'
@@ -81,12 +81,13 @@ class ColumnsTest(unittest.TestCase):
             {'Name': 'A - Domain', 'FieldType': 'String', 'Id': 'C', 'AtIndex': 2, 'Hidden': False},
             {'Name': 'A', 'FieldType': 'String', 'Id': 'D', 'AtIndex': 3, 'Hidden': False},
         ]
-        g.get_columns = MagicMock(return_value=fake_resp)
+        g._get = MagicMock(return_value=fake_resp)
         res = g.column_ids_for_names(_mock_handle, ['A - Domain'])
+        g._get.assert_called_with(f'/dataset/{_mock_handle}/columns', params={'showHidden': True})
         self.assertEqual(res, ['C'])
         self.assertRaises(ValueError, lambda: g.column_ids_for_names(_mock_handle, ['A']))
         self.assertRaises(ValueError, lambda: g.column_ids_for_names(_mock_handle, ['X']))
-        
+
 
 if __name__ == '__main__':
     unittest.main()
