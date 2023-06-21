@@ -2,11 +2,15 @@
 Command-line utility for using Gigasheet Api to upload a file and share it.
 
 See README for setup instructions.
+
+If you find yourself piping data in the terminal, you can make a gigasheet pipe command by adding an alias to your bash_profile:
+alias gigasheet='/path/to/gigasheet-python/examples/upload_and_share_cli.py --input-stdin'
 """
 
 import argparse
 import json
 import os
+import sys
 
 from gigasheet import gigasheet
 
@@ -21,7 +25,11 @@ def main():
     parser_input.add_argument("--input-url", 
         help="URL of file to upload to Gigasheet")
     parser_input.add_argument("--input-file", 
-        help="Path to local file to upload to Gigasheet")
+        help="Path to local file to upload to Gigasheet (max ~50MB depending on connection speed)")
+    parser_input.add_argument("--input-stdin",
+        help="Read stdin pipe to obtain file contents to upload to Gigasheet (max ~50MB depending on connection speed)",
+        action="store_true",
+        default=False)
     parser_input.add_argument("--input-handle",
         help="If a sheet was already uploaded, specify the handle to do rename and share on it instead of a new upload")
     parser.add_argument("--share-to",
@@ -74,6 +82,10 @@ def main():
             name = os.path.split(args.input_file)[-1]
         print(f'attempting to load from file: {args.input_file}')
         sheet = giga.upload_file(args.input_file, name)
+    elif args.input_stdin:
+        if name is None:
+            name = _default_name
+        sheet = giga.upload_filelike(sys.stdin.buffer, name)
     else:
         raise ValueError('Missing input parameter. Should be unreachable after argparse validation.')
 

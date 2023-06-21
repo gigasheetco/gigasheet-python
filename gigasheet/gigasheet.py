@@ -104,12 +104,12 @@ class Gigasheet(object):
     def upload_file(self, path_on_disk: str, name_after_upload: str, append_to_handle: str = None) -> str:
         """upload_file
 
-        Upload a local file into Gigasheet.
+        Upload the contents of a file into Gigasheet.
 
-        This uses a single http connection, so depending on the speed of your internet connection, you may not be able to upload large files. For large files, consider putting your data on a cloud storage and using upload_url with a presigned link instead.
+        See upload_filelike for details and restrictions.
 
         Parameters:
-            path_on_disk (str): the path to the local file to upload
+            path_on_disk (str): path to a file on local filesystem
             name_after_upload (str): the name after the upload is done, must be non-enpty but is ignored if successfully appended
             append_to_handle (str): optionally specify an existing file handle to append records
 
@@ -117,7 +117,27 @@ class Gigasheet(object):
             str: sheet handle that uniquely identifies the uploaded file in Gigasheet
         """
         with open(path_on_disk, 'rb') as fid:
-            contents = fid.read()
+            return self.upload_filelike(fid, name_after_upload, append_to_handle)
+
+    def upload_filelike(self, bytes_buffer: object, name_after_upload: str, append_to_handle: str = None) -> str:
+        """upload_filelike
+
+        Upload the contents of a file-like object into Gigasheet.
+
+        This uses a single http connection, so depending on the speed of your internet connection, you may not be able to upload large files.
+        For large files, consider putting your data on a cloud storage and using upload_url with a presigned link instead.
+
+        Parameters:
+            bytes_buffer (object): file-like object that returns bytes from read(), such as a file pointer with 'b' or stdin.buffer
+            name_after_upload (str): the name after the upload is done, must be non-enpty but is ignored if successfully appended
+            append_to_handle (str): optionally specify an existing file handle to append records
+
+        Returns
+            str: sheet handle that uniquely identifies the uploaded file in Gigasheet
+        """
+        contents = bytes_buffer.read()
+        if len(contents) == 0:
+            raise ValueError('Empty content from input buffer, cannot upload')
         body = {
             'name': name_after_upload,
             'contents': str(base64.b64encode(contents), 'UTF-8'),
@@ -298,6 +318,7 @@ class Gigasheet(object):
         success = False
         i = 0
         status = None
+        detailed_status = ''
         for i in range(max_tries):
             if i != 0:
                 time.sleep(seconds_between_polls)
@@ -318,12 +339,19 @@ class Gigasheet(object):
                 # Ignore errors unless we are checking for deletion as success.
                 continue
             status = info.get('Status')
+            detailed_status = info.get('DetailedStatus', '')
             if status == _file_success_status:
                 return
             if status not in _file_wait_status:
-                raise RuntimeError(f'Bad status on handle {handle}: {status}')
+                msg = f'Handle {handle} failed in status "{status}"'
+                if detailed_status:
+                    msg += f' with details: {detailed_status}'
+                raise RuntimeError(msg)
         if not success:
-            raise RuntimeError(f'Handle {handle} still not done after {i} tries, last status was: {status}')
+            msg = f'Handle {handle} still not done after {i} tries, last status was "{status}"'
+            if detailed_status:
+                msg += f' with details: {detailed_status}'
+            raise RuntimeError(msg)
 
     def get_rows(self, handle, start_row, end_row, filter_model=None):
         if not handle:
