@@ -89,5 +89,15 @@ class ColumnsTest(unittest.TestCase):
         self.assertRaises(ValueError, lambda: g.column_ids_for_names(_mock_handle, ['X']))
 
 
+class DescriptionTest(unittest.TestCase):
+
+    def test_set_description(self):
+        g = giga_with_mock()
+        desc = "a great description"
+        g.set_description(_mock_handle, desc)
+        expected_body = {'note': desc}
+        g._put.assert_called_with(f'/dataset/{_mock_handle}/note', expected_body)
+
+
 if __name__ == '__main__':
     unittest.main()

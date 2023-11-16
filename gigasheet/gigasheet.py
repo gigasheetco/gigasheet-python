@@ -245,6 +245,59 @@ class Gigasheet(object):
             out.append(c[0])
         return out
 
+    def column_id_for_name(self, handle: str, column_name: str) -> str:
+        """column_id_for_name
+
+        Returns a single column ID for the column with the given name.
+
+        Raises a ValueError if there is not exactly one match for the name.
+
+        Params:
+            handle (str): The handle of the sheet to get the column ID.
+            column_name (str): The name of the column to get the ID for.
+
+        Returns:
+            str: The column ID matching the name
+        """
+        cols = self.get_columns(handle, show_hidden=True)
+        col_id = None
+        for c in cols:
+            if c['Name'] == column_name:
+                if col_id is None:
+                    col_id = c['Id']
+                else:
+                    raise ValueError(f'Multiple matches in sheet {handle} for column name: {column_name}')
+        if col_id is None:
+            raise ValueError(f'No matches in sheet {handle} for column name: {column_name}')
+        return col_id
+
+    def rename_column(self, handle: str, column: str, new_name: str):
+        """rename_column
+
+        Rename a column.
+
+        Params:
+            handle (str): The handle of the sheet to rename a column in.
+            column (str): The ID of the column to be renamed.
+            new_name (str): The new name of the column.
+        """
+        return self.rename_columns(handle, {column: new_name})
+
+    def rename_columns(self, handle: str, column_id_to_name: dict):
+        """rename_columns
+
+        Rename multiple columns at once.
+
+        Params:
+            handle (str): The handle of the sheet to rename a column in.
+            column_id_to_name (dict): A dict where the keys are column IDs and the values are the new names for those IDs (only including columns to be renamed).
+        """
+        url = f'/files/{handle}/headers'
+        body = {
+            'headers': column_id_to_name
+        }
+        return self._put(url, body)
+
     def deduplicate_rows(self, handle: str, column_ids: list, sort_model: object):
         """deduplicate_rows
 
@@ -284,6 +337,32 @@ class Gigasheet(object):
         body = {'uuid': handle, 'filename': new_name}
         return self._post(f'/rename/{handle}', body)
 
+    def delete_columns(self, handle, column_ids):
+        url = f'/files/{handle}/delete-multiple-columns'
+        body = {
+            'columnsToDelete': column_ids
+        }
+        return self._post(url, body)
+
+    def formula(self, handle: str, formula: str, column_name: str):
+        """formula
+
+        Apply the given formula to produce a single new column with the given name.
+
+        Note that formulas act on entire columns, not on individual cells.
+
+        Params:
+            handle (str): Handle of the sheet to run the formula on
+            formula (str): The formula to apply
+            column_name (str): The name for the resulting column
+        """
+        url = f'/dataset/{handle}/formula'
+        body = {
+            'formula': formula,
+            'columnName': column_name
+        }
+        return self._post(url, body)
+
     def list_saved_filters(self):
         return self._get('/filter-templates')
 
@@ -301,6 +380,31 @@ class Gigasheet(object):
 
     def unshare(self, handle):
         self._share_set_public(handle, False)
+
+    def combine_files(self, handles: list, new_file_name: str, folder_handle: str = None) -> str:
+        """combine_files
+        Combine a list of files into a new file.
+
+        The first handle in the list determines the name and type of the output columns. Other handles must be compatible with the first.
+
+        Params:
+            handles (list of str): Handles to combine, with the first in the list determining the names and types of the output
+            new_file_name (str): Filename of the resulting file
+            folder_handle (str): Handle of the folder to place the resulting file
+
+        Returns:
+            Handle of the combined sheet
+        """
+        url = '/files/combine'
+        body = {
+            'fileName': new_file_name,
+            'handles': handles
+        }
+        if folder_handle is not None:
+            body['folderHandle'] = folder_handle
+        print(body)
+        res = self._post(url, body)
+        return res['Handle']
 
     def wait_for_file_to_finish(self, handle: str, deletion_is_success: bool = False, seconds_between_polls: float = 1.0, max_tries: int = 1000):
         """wait_for_file_to_finish
@@ -352,6 +456,25 @@ class Gigasheet(object):
             if detailed_status:
                 msg += f' with details: {detailed_status}'
             raise RuntimeError(msg)
+
+    def set_description(self, handle: str, description: str):
+        """set_description
+
+        Set the text description on a sheet, up to 20k in length.
+
+        Also sometimes referred to as the sheet note. Value is returned from info() in the Note field.
+
+        Params:
+            handle (str): The handle of the sheet to set the description on.
+            description (str): The description to set on the sheet.
+        """
+        if not handle:
+            raise ValueError('Empty value for handle')
+        url = f'/dataset/{handle}/note'
+        data = {
+            'note': description
+        }
+        return self._put(url, data)
 
     def get_rows(self, handle, start_row, end_row, filter_model=None):
         if not handle:
@@ -405,10 +528,59 @@ class Gigasheet(object):
     def enrich_email_format(self, handle, column_id, filter_model=None):
         return self.enrich_builtin(handle, column_id, 'email-format-check', filter_model)
 
+    def ls(self, dir: str = None) -> list:
+        """ls
+
+        Retrieve files and directories owned by this user at root or in a directory.
+
+        Params:
+            dir: Handle of the directory to retrieve files inside of, or None for root.
+
+        Returns:
+            List of dicts describing files and directories at that location.
+        """
+        if dir is None:
+            url = '/library/'
+        else:
+            url = f'/library/{dir}'
+        return self._get(url)
+
+    def cross_file_lookup(self, my_handle: str, reference_handle: str, my_match_col: str, reference_match_col: str, insert_reference_cols: list, case_insensitive: bool = False, ignore_punctuation: bool = False, ignore_whitespace: bool = False):
+        """cross_file_lookup
+
+        Insert columns from a reference sheet by matching on column values.
+
+        Params:
+            my_handle: The current sheet where the data should be inserted
+            reference_handle: The reference sheet where columns will be pulled from
+            my_match_col: The ID of the column in the current sheet to match on
+            reference_match_col: The ID of the column in the reference sheet to match on
+            insert_reference_cols: When the values in the columns match, put in the values from these columns IDs in the reference sheet
+            case_insensitive: If True, ignore case when matching values
+            ignore_punctuation: If True, ignore punctuation when matching values
+            ignore_whitespace: If True, ignore whitespace when matching values
+        """
+        url = f'/lookup/{my_handle}/{my_match_col}'
+        body = {
+            'referenceFile': {
+                'handle': reference_handle,
+                'column': reference_match_col,
+                'additionalColumns': insert_reference_cols
+            },
+            'matchConditions': {
+                'caseInsensitive': case_insensitive,
+                'ignorePunctuation': ignore_punctuation,
+                'ignoreWhitespace': ignore_whitespace
+            }
+        }
+        return self._post(url, body)
+
     def _url(self, endpoint):
         return urllib.parse.urljoin(_gigasheet_api_base_url, endpoint)
 
     def _after(self, resp):
+        if not resp.ok:
+            print(resp.text)
         resp.raise_for_status()
         return resp.json()
 

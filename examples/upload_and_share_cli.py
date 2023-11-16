@@ -15,49 +15,53 @@ import sys
 from gigasheet import gigasheet
 
 
-_default_name = f"Upload from {os.path.basename(__file__)}"
+_default_name = f'Upload from {os.path.basename(__file__)}'
 
 
 def main():
     # Get command-line arguments.
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser(description='')
     parser_input = parser.add_mutually_exclusive_group(required=True)
-    parser_input.add_argument("--input-url", 
-        help="URL of file to upload to Gigasheet")
-    parser_input.add_argument("--input-file", 
-        help="Path to local file to upload to Gigasheet (max ~50MB depending on connection speed)")
-    parser_input.add_argument("--input-stdin",
-        help="Read stdin pipe to obtain file contents to upload to Gigasheet (max ~50MB depending on connection speed)",
-        action="store_true",
+    parser_input.add_argument('--input-url', 
+        help='URL of file to upload to Gigasheet')
+    parser_input.add_argument('--input-file', 
+        help='Path to local file to upload to Gigasheet (max ~50MB depending on connection speed)')
+    parser_input.add_argument('--input-stdin',
+        help='Read stdin pipe to obtain file contents to upload to Gigasheet (max ~50MB depending on connection speed)',
+        action='store_true',
         default=False)
-    parser_input.add_argument("--input-handle",
-        help="If a sheet was already uploaded, specify the handle to do rename and share on it instead of a new upload")
-    parser.add_argument("--share-to",
-        help="Email addresses to share with, repeat this flag to share to multiple recipients",
+    parser_input.add_argument('--input-handle',
+        help='If a sheet was already uploaded, specify the handle to do rename and share on it instead of a new upload')
+    parser.add_argument('--share-to',
+        help='Email addresses to share with, repeat this flag to share to multiple recipients',
         required=False, 
-        action="append",
+        action='append',
         default=[])
-    parser.add_argument("--share-write",
-        help="Share with write permission as opposed to only read access",
+    parser.add_argument('--share-write',
+        help='Share with write permission as opposed to only read access',
         required=False,
-        action="store_true",
+        action='store_true',
         default=False)
-    parser.add_argument("--share-message",
-        help="Optional message to send with the share",
+    parser.add_argument('--share-message',
+        help='Optional message to send with the share',
         required=False,
-        default="")
-    parser.add_argument("--api-key",
-        help="Api key to use. Will use $GIGASHEET_API_KEY otherwise.",
+        default='')
+    parser.add_argument('--api-key',
+        help='Api key to use. Will use $GIGASHEET_API_KEY otherwise.',
         required=False, 
         default=None)
-    parser.add_argument("--name",
-        help="Rename sheet to this name. Intended for use with default example input.",
+    parser.add_argument('--name',
+        help='Rename sheet to this name. Intended for use with default example input.',
         required=False, 
         default=None)
-    parser.add_argument("--describe",
-        help="Print sheet info at the end of execution.",
+    parser.add_argument('--description',
+        help='Update the sheet description',
         required=False,
-        action="store_true",
+        default=None)
+    parser.add_argument('--info',
+        help='Print sheet info at the end of execution.',
+        required=False,
+        action='store_true',
         default=False)
     args = parser.parse_args()
 
@@ -103,16 +107,21 @@ def main():
         giga.rename(sheet, name)
         print('sheet renamed')
 
+    # If requested, update the sheet description.
+    if args.description is not None:
+        giga.set_description(sheet, args.description)
+        print('updated sheet description')
+
     # If requested, share the sheet.
     if args.share_to:
         giga.share(sheet, args.share_to, args.share_write, args.share_message)
         print(f'shared to {len(args.share_to)} recipients')
 
     # If requested, print sheet info at the end
-    if args.describe:
+    if args.info:
         info = giga.info(sheet)
         print(json.dumps(info, indent=2))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

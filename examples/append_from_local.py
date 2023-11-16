@@ -11,7 +11,7 @@ import argparse
 from gigasheet import gigasheet
 
 
-def append_from_file(handle: str, input_file_path: str, unique_identifier_col_names: list, upsert: bool):
+def append_from_file(handle: str, input_file_path: str, unique_identifier_col_names: list, upsert: bool, description: str):
     # Get a client instance
     giga = gigasheet.Gigasheet()
     # Check the deduplicate columns are okay before appending
@@ -38,6 +38,13 @@ def append_from_file(handle: str, input_file_path: str, unique_identifier_col_na
         # Then deduplicate
         giga.deduplicate_rows(handle, dedupe_col_ids, sort_model)
         print(f'Deduplication finished, deduplicated row count: {giga.count_rows(handle)}')
+    # Update description if requested
+    if description is not None:
+        giga.set_description(handle, description)
+        print(f'Updated description')
+    print()
+    print(giga.get_sheet_url(handle))
+    print()
 
 
 if __name__ == '__main__':
@@ -58,8 +65,12 @@ if __name__ == '__main__':
         required=False,
         default=False,
         action='store_true')
+    parser.add_argument('--description',
+        help='Optionally text string to set as the description on the updated sheet',
+        required=False,
+        default=None)
     args = parser.parse_args()
     if args.upsert and not args.deduplicate_by_col_names:
         raise ValueError('Must specify deduplicate_by_col_names to upsert')
-    append_from_file(args.handle, args.input_file, args.deduplicate_by_col_names, args.upsert)
+    append_from_file(args.handle, args.input_file, args.deduplicate_by_col_names, args.upsert, args.description)
     
