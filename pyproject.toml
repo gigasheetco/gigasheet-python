@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "gigasheet"
+version = "2.1.0"
+description = "Gigasheet Python SDK"
+authors = ["Gigasheet <support@gigasheet.com>"]
+readme = "README.md"
+license = "MIT"
+homepage = "https://www.gigasheet.com"
+repository = "https://github.com/gigasheetco/gigasheet-python"
+documentation = "https://gigasheet.readme.io/"
+include = ["examples/**/*"]
+
+[tool.poetry.dependencies]
+python = "^3.8.1 || ^3.9 || ^3.10 || ^3.11"
+requests = "^2"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8"
+flake8 = "^7"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

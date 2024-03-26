@@ -423,11 +423,13 @@ class Gigasheet(object):
         i = 0
         status = None
         detailed_status = ''
+        found_once = False
         for i in range(max_tries):
             if i != 0:
                 time.sleep(seconds_between_polls)
             try:
                 info = self.info(handle)
+                found_once = True
             except requests.exceptions.HTTPError as e:
                 # This block is here because some operations, such as appending to a sheet, create transient sheets in Gigasheet.
                 # Those transient sheets are deleted after the job is done, and the poll will receive a 400 Bad Request in response when that happens.
@@ -435,7 +437,7 @@ class Gigasheet(object):
                 # This is a somewhat odd situation driven by the implementation on the backend, so we may change how we handle it in a future version.
                 if deletion_is_success:
                     resp = e.response
-                    if resp.status_code == 400 and 'deleted' in resp.text:
+                    if (found_once and (resp.status_code == 404 or resp.status_code == 400)):
                         return
                 else:
                     continue
@@ -574,6 +576,35 @@ class Gigasheet(object):
             }
         }
         return self._post(url, body)
+
+    def get_operation_status(self, handle: str) -> dict:
+        """get_operation_status
+
+        Get the status of an operation. This is primarily used when
+        another action returns a 202 response, indicating that the
+        operation is still in progress.
+
+        The response here will have a Status field that will have one
+        of the following values:
+        - "" (empty string): there is no operation
+        - "Working": the operation is still in progress
+        - "Done": the operation has completed
+        - "Error": the operation has failed
+
+        Params:
+            handle: The handle of the sheet to get the status of
+        """
+        return self._get(f"/dataset/{handle}/operation-status")
+
+    def delete_sheet(self, handle: str):
+        """delete_sheet
+
+        Deletes a sheet. (NOTE: This is irreversible!)
+
+        Params:
+            handle: The handle of the sheet to delete
+        """
+        return self._delete(f"/delete/{handle}", {})
 
     def _url(self, endpoint):
         return urllib.parse.urljoin(_gigasheet_api_base_url, endpoint)

@@ -23,7 +23,7 @@ class UploadTest(unittest.TestCase):
     def test_upload_file(self):
         g = giga_with_mock()
         name = 'mock file upload'
-        test_file = 'testdata/sample-local-upload.csv'
+        test_file = 'gigasheet/testdata/sample-local-upload.csv'
         expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl'  # base64 encoded file contents of test file
         g.upload_file(test_file, name)
         expected_body = {
@@ -36,7 +36,7 @@ class UploadTest(unittest.TestCase):
     def test_upload_file_append(self):
         g = giga_with_mock()
         name = 'mock file upload'
-        test_file = 'testdata/sample-local-upload.csv'
+        test_file = 'gigasheet/testdata/sample-local-upload.csv'
         expected_bytes = 'bm90LHJlYWwKdGVzdCxmaWxl'  # base64 encoded file contents of test file
         g.upload_file(test_file, name, _mock_handle)
         expected_body = {
