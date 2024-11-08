@@ -330,8 +330,17 @@ class Gigasheet(object):
         Returns:
             int: The row count
         """
-        resp = self.get_rows(handle, 0, 1, filter_model)
-        return resp['lastRow']
+        if not handle:
+            raise ValueError('Empty value for handle')
+        url = f'/dataset/{handle}/count/rows'
+        data = {
+            'filterModel': filter_model,
+        }
+        if (not (
+            filter_model is None or filter_model == {} or (
+                len(filter_model) == 1 and list(filter_model.keys())[0] == expected_filter_key))):
+            raise ValueError(f'Invalid filter model, should be empty dict or dict with one key {expected_filter_key}')
+        return self._post(url, data)['count']
 
     def rename(self, handle, new_name):
         body = {'uuid': handle, 'filename': new_name}

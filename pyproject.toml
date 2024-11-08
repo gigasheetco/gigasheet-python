@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gigasheet"
-version = "2.1.0"
+version = "2.2.0"
 description = "Gigasheet Python SDK"
 authors = ["Gigasheet <support@gigasheet.com>"]
 readme = "README.md"
